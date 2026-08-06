@@ -65,6 +65,7 @@ Bedrock에는 Anthropic 외에도 Amazon Nova, Meta Llama 등 더 저렴한 모�
 
 - 원래는 Sonnet 5(이전 세대보다 저렴하면서 더 최신)를 선택했으나, 실제 호출 시 계정 무관하게 `AccessDeniedException` 발생 — ap-northeast-2(서울), us-east-1(버지니아 북부) 모두 동일하게 막힘. root 계정, 결제 수단 등록 상태에서도 재현되고 같은 계정에서 Sonnet 4.6은 정상 호출되어, 계정/결제 문제가 아니라 **Sonnet 5 자체의 가용 리전/계정 롤아웃이 아직 제한적인 것**으로 판단
 - Sonnet 5 액세스가 열리면 모델 ID만 바꿔서 전환 예정 ([`progress.md`](./progress.md) 참고)
+- **모델 ID 확정** (AWS 공식 모델 카드 확인, 2026-08-06): Claude Sonnet 4.6은 ap-northeast-2(서울)에서 In-Region/Geo 둘 다 미지원, **Global Cross-Region Inference만 지원**. 따라서 bare 모델 ID(`anthropic.claude-sonnet-4-6`)가 아니라 `global.anthropic.claude-sonnet-4-6`을 `BEDROCK_MODEL_ID`로 사용해야 함 (`apps/api/.env.example`에 반영됨). 이전에 Opus 5/Sonnet 5 호출이 리전 무관하게 막혔던 것도 같은 이유(bare ID로는 최신 모델 대부분이 안 됨)일 가능성이 높음
 - Opus는 이 용도(구조화된 정성 피드백 생성)에 비해 비용 대비 이득이 없어 제외
 - Fable은 창작/롤플레이 특화 모델이라 인터뷰 피드백 도메인에 맞지 않아 제외
 - 질문 생성처럼 실시간성이 필요 없는 작업은 Bedrock Batch 추론(최대 50% 할인)으로 추가 절감 가능하나, 원가 자체가 연 $1 미만이라 최적화 우선순위 낮음 — 모델 하나로 통일해 관리를 단순화하는 쪽을 선택
