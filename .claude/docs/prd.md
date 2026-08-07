@@ -240,6 +240,8 @@ push_subscriptions (id, user_id, endpoint, keys_json, created_at)  — PWA 푸�
 | Phase 4 | AWS 인프라 구성 (Lambda+API Gateway, S3) + Supabase 프로덕션 연결 + EventBridge Scheduler(고정 cron) 리마인더 발송 Lambda + 배포 | 실제 URL로 접속 가능, 고정 시간에 푸시 도착 확인 |
 | Phase 5 | 도메인 연결, 모니터링(CloudWatch), 비용 알람 | 운영 준비 완료 |
 
+**실행 순서 변경 (2026-08-07)**: 위 표는 Phase별 최종 산출물 기준이며, 실제 착수 순서는 Phase 2를 전부 끝낸 뒤 Phase 3을 시작하지 않는다. 대신 **기능 단위로 백엔드+프론트를 함께(vertical slice) 진행** — 예: "이력서 업로드"는 API(Phase 2)와 화면(Phase 3)을 같은 기능 단위로 묶어 처리. 이유: curl로만 검증하며 백엔드를 전부 쌓기보다, 실제 화면에서 눈으로 확인하며 가는 게 개인 프로젝트 진행에 더 낫다고 판단. "AI 답변 피드백"은 답변이 쌓인 후에야 의미가 있어 예외적으로 가장 마지막으로 유지. 착수 순서와 현재 상태는 [`progress.md`](./progress.md)에서 실시간으로 관리.
+
 ## 7. 열린 질문 / 리스크
 
 - **이력서 파싱 정확도**: PDF 레이아웃에 따라 텍스트 추출 품질 편차 가능 — 1차는 단순 텍스트 추출로 시작, 필요시 개선.

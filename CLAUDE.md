@@ -5,7 +5,7 @@
 ## 스택
 
 -   **apps/web**: Next.js 14 (App Router)
--   **apps/api**: Express, Lambda 배포용 `serverless-http` 래핑, `x-api-key` 헤더 인증
+-   **apps/api**: Express, Lambda 배포용 `serverless-http` 래핑, 이메일 기반 방문자 게이트 인증 (`x-user-email` 헤더 → `users` 테이블 DB 조회, PRD 3.7)
 -   **packages/shared-types**: 프론트-백엔드 공유 타입 (Source, Question, Answer, AnswerFeedback, Streak)
 -   **packages/config**: eslint/tsconfig 공통 설정
 -   **infra**: AWS 인프라 (Lambda, API Gateway) — Phase 4에서 CDK/SST로 구현 예정
@@ -43,6 +43,10 @@
     ↓
     ⏸️ 승인 대기 → 완료
 ```
+
+**단계 사이(⏸️)의 승인 게이트는 그대로 유지합니다** — spec 승인 없이 test-architect로, test 승인 없이 developer로 넘어가지 않습니다.
+
+**단계 안에서의 승인 범위**: 각 서브에이전트는 작업을 시작하기 전 전체 계획(예: 설치할 패키지 목록, 처리 순서, 건드릴 파일)을 한 번 사용자에게 보여줍니다. 그 계획을 보여준 시점 자체가 승인 기회이므로, **계획에 이미 포함된 개별 항목은 실행 단계에서 또 물어보지 않고 그대로 진행**합니다 (예: "`@supabase/supabase-js` 설치가 필요합니다"라고 계획에 언급했다면, 실제 설치 시점에 다시 승인을 구하지 않음). 계획에 없던 새로운 결정(스코프 변경, 예상 못한 트레이드오프)이 작업 중 생기면 그건 별도로 확인합니다. 모든 서브에이전트(spec-writer/test-architect/developer)에 동일하게 적용됩니다.
 
 이 3단계는 원래 spec-writer / po / test-architect / developer / refactor 5단계였던 것을 개인 프로젝트 규모에 맞게 축소한 것입니다.
 
@@ -83,5 +87,5 @@ apps/api/src/
 
 -   TypeScript strict, `any` 지양
 -   시간 관련 값은 KST(UTC+9) 기준, ISO 8601 형식
--   로그인/인증은 고정 API 키 방식 (PRD 3.7) — 복잡한 인증 로직 추가하지 않음
+-   방문자 인증은 이메일 기반 게이트 + `users` 테이블 DB 조회 방식 (PRD 3.7) — 별도 회원가입/비밀번호 시스템 추가하지 않음
 -   Over-engineering 금지: 테스트를 통과시키는 최소 구현 우선, YAGNI 원칙

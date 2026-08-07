@@ -11,13 +11,19 @@
   },
   "dependencies": {
     "@daily-interview-coach/shared-types": "workspace:*",
+    "@supabase/supabase-js": "^2.112.2",
     "express": "^4.21.0",
+    "multer": "^2.2.0",
+    "pdf-parse": "^1.1.1",
     "serverless-http": "^3.2.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
+    "@types/multer": "^2.2.0",
     "@types/node": "^20.14.0",
+    "@types/pdf-parse": "^1.1.5",
     "@types/supertest": "^6.0.2",
+    "dotenv": "^17.4.2",
     "supertest": "^7.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
