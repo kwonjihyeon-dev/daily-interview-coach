@@ -1,5 +1,6 @@
 import express, { Express, NextFunction, Request, Response } from "express";
 import resumeRouter from "./routes/resume";
+import authRouter from "./routes/auth";
 
 const app: Express = express();
 app.use(express.json());
@@ -9,8 +10,13 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-// 이메일 기반 방문자 게이트(PRD 3.7) — /api/sources/resume는 아래 x-api-key 방식 대신
-// 이 라우터 내부(resume.ts)에서 requireAuthenticatedUser 미들웨어를 직접 체이닝해 사용한다.
+// 이메일 기반 방문자 게이트(PRD 3.7) — POST /api/auth/verify-email은 정의상 미인증
+// 방문자가 호출하므로, 아래 requireApiKey/requireAuthenticatedUser보다 먼저 등록해야
+// 이 경로가 인증 없이 바로 처리된다.
+app.use("/api/auth/verify-email", authRouter);
+
+// /api/sources/resume는 아래 x-api-key 방식 대신 이 라우터 내부(resume.ts)에서
+// requireAuthenticatedUser 미들웨어를 직접 체이닝해 사용한다.
 // 아래 requireApiKey보다 먼저 등록해야, 이 경로가 requireApiKey를 거치지 않고 바로 처리된다.
 app.use("/api/sources/resume", resumeRouter);
 
