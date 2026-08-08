@@ -1,11 +1,14 @@
 import { Router, type Request, type Response } from "express";
 import { lookupUserByEmail } from "../lib/userLookup";
+import { buildVisitorCookieOptions, VISITOR_COOKIE_NAME } from "../lib/visitorCookie";
 
 /**
- * 대상 스펙: .claude/artifacts/spec/이메일-방문자-게이트_spec.md
- * "백엔드 보강: POST /api/auth/verify-email" 절.
+ * 대상 스펙: .claude/artifacts/spec/이메일-방문자-게이트_spec.md (v2)
+ * "백엔드: POST /api/sessions (변경 — 엔드포인트 RESTful 재명명 + 쿠키 발급 추가)" 절.
  *
- * 미인증 방문자가 호출하는 엔드포인트이므로 app.ts에서 requireApiKey보다 먼저 등록된다.
+ * 미인증 방문자가 호출하는 엔드포인트다(정의상 인증 불필요). `app.ts`에서
+ * `app.use("/api/sessions", authRouter)`로 마운트하며, 레거시 `requireApiKey`가
+ * 완전히 삭제되어 더 이상 등록 순서를 신경 쓸 필요가 없다.
  */
 
 const EMAIL_FORMAT_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -32,9 +35,9 @@ router.post("/", async (req: Request, res: Response) => {
     return;
   }
 
-  const { user, queryFailed } = await lookupUserByEmail(normalizedEmail);
+  const { user, isFailedQuery } = await lookupUserByEmail(normalizedEmail);
 
-  if (queryFailed) {
+  if (isFailedQuery) {
     sendError(
       res,
       500,
@@ -54,7 +57,8 @@ router.post("/", async (req: Request, res: Response) => {
     return;
   }
 
-  res.status(200).json({ verified: true });
+  res.cookie(VISITOR_COOKIE_NAME, normalizedEmail, buildVisitorCookieOptions());
+  res.status(201).json({ verified: true });
 });
 
 export default router;

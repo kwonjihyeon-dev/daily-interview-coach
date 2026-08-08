@@ -1,26 +1,23 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  VISITOR_COOKIE_MAX_AGE_SECONDS,
-  VISITOR_COOKIE_NAME,
-  buildVisitorCookieOptions,
-  isValidVisitorEmailCookieValue,
-} from "./visitorCookie";
+import { describe, expect, it } from "vitest";
+import { VISITOR_COOKIE_NAME, isValidVisitorEmailCookieValue } from "./visitorCookie";
 
 /**
- * 대상 스펙: .claude/artifacts/spec/이메일-방문자-게이트_spec.md "쿠키 명세" 절.
+ * 대상 스펙: .claude/artifacts/spec/이메일-방문자-게이트_spec.md (v2) "쿠키 명세" 절.
  *
- * `middleware.ts`(형식 검사)와 `app/api/gate/verify/route.ts`(쿠키 발급 옵션)가 함께
- * 참조하는 공용 상수/순수 함수를 이 모듈에서 검증한다.
+ * v2 재설계로 쿠키 발급 주체가 `apps/web`(Route Handler)에서 `apps/api`로 이동했다.
+ * 이에 따라 `buildVisitorCookieOptions`/`VisitorCookieOptions`/
+ * `VISITOR_COOKIE_MAX_AGE_SECONDS`는 이 모듈에서 완전히 제거된다(발급 옵션은 신규
+ * `apps/api/src/lib/visitorCookie.ts`가 전담 — 그 파일의 테스트는 developer 단계에서
+ * 함께 작성될 구현에 맞춰 별도로 다룬다).
+ *
+ * `apps/web`은 `middleware.ts`(쿠키 형식 검사)와 `gate/page.tsx`가 함께 참조하는
+ * `VISITOR_COOKIE_NAME`/`isValidVisitorEmailCookieValue`만 유지한다 — 이 두 export는
+ * v1과 동작 변화가 없다.
  */
 
-afterEach(() => {
-  vi.unstubAllEnvs();
-});
-
-describe("VISITOR_COOKIE_NAME / VISITOR_COOKIE_MAX_AGE_SECONDS", () => {
-  it("쿠키 이름은 dic_visitor_email, maxAge는 15552000초(180일)이다", () => {
+describe("VISITOR_COOKIE_NAME", () => {
+  it("쿠키 이름은 dic_visitor_email이다", () => {
     expect(VISITOR_COOKIE_NAME).toBe("dic_visitor_email");
-    expect(VISITOR_COOKIE_MAX_AGE_SECONDS).toBe(15552000);
   });
 });
 
@@ -64,30 +61,6 @@ describe("isValidVisitorEmailCookieValue", () => {
       const email = `${local}@a.co`;
       expect(email.length).toBe(256);
       expect(isValidVisitorEmailCookieValue(email)).toBe(false);
-    });
-  });
-});
-
-describe("buildVisitorCookieOptions", () => {
-  it("NODE_ENV=production이면 secure: true를 반환한다", () => {
-    vi.stubEnv("NODE_ENV", "production");
-    expect(buildVisitorCookieOptions()).toEqual({
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 15552000,
-    });
-  });
-
-  it("NODE_ENV가 production이 아니면(로컬 개발) secure: false를 반환한다", () => {
-    vi.stubEnv("NODE_ENV", "development");
-    expect(buildVisitorCookieOptions()).toEqual({
-      httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 15552000,
     });
   });
 });

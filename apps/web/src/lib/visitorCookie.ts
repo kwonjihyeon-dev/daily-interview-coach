@@ -1,12 +1,12 @@
 /**
- * 대상 스펙: .claude/artifacts/spec/이메일-방문자-게이트_spec.md "쿠키 명세" 절.
+ * 대상 스펙: .claude/artifacts/spec/이메일-방문자-게이트_spec.md (v2) "쿠키 명세" 절.
  *
- * `middleware.ts`(형식 검사)와 `app/api/gate/verify/route.ts`(쿠키 발급 옵션)가 함께
- * 참조하는 공용 상수/순수 함수.
+ * v2 재설계로 쿠키 발급(옵션 결정)은 `apps/api/src/lib/visitorCookie.ts`가 전담한다.
+ * 이 모듈은 `middleware.ts`(형식 검사)와 `gate/page.tsx`가 함께 참조하는 쿠키 이름/형식
+ * 검사 전용 공용 상수·순수 함수만 유지한다.
  */
 
 export const VISITOR_COOKIE_NAME = "dic_visitor_email";
-export const VISITOR_COOKIE_MAX_AGE_SECONDS = 15552000;
 
 const EMAIL_FORMAT_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_EMAIL_LENGTH = 254;
@@ -19,22 +19,4 @@ export function isValidVisitorEmailCookieValue(value: string | null | undefined)
     return false;
   }
   return EMAIL_FORMAT_REGEX.test(value);
-}
-
-export interface VisitorCookieOptions {
-  httpOnly: boolean;
-  secure: boolean;
-  sameSite: "lax";
-  path: string;
-  maxAge: number;
-}
-
-export function buildVisitorCookieOptions(): VisitorCookieOptions {
-  return {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: VISITOR_COOKIE_MAX_AGE_SECONDS,
-  };
 }

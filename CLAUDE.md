@@ -86,6 +86,8 @@ apps/api/src/
 ## 일반 컨벤션
 
 -   TypeScript strict, `any` 지양
+-   함수명은 `handle` 접두사(`handleSubmit`, `handleResumeUpload` 등) 대신 **동사+목적어** 형태로 작성 (`submitForm`, `uploadResume`). 이벤트 핸들러(`onSubmit={submitForm}`)에도 동일하게 적용
+-   불리언 변수/필드명은 `is` 접두사로 작성 (`isFailedQuery`, `isSubmitting`)
 -   시간 관련 값은 KST(UTC+9) 기준, ISO 8601 형식
 -   방문자 인증은 이메일 기반 게이트 + `users` 테이블 DB 조회 방식 (PRD 3.7) — 별도 회원가입/비밀번호 시스템 추가하지 않음
 -   Over-engineering 금지: 테스트를 통과시키는 최소 구현 우선, YAGNI 원칙

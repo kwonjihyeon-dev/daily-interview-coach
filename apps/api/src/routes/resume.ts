@@ -53,7 +53,7 @@ function toKstIso(utcIso: string): string {
   return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}+09:00`;
 }
 
-async function handleResumeUpload(req: Request, res: Response): Promise<void> {
+async function uploadResume(req: Request, res: Response): Promise<void> {
   try {
     const user = req.user;
     if (!user) {
@@ -208,6 +208,6 @@ async function handleResumeUpload(req: Request, res: Response): Promise<void> {
   }
 }
 
-router.post("/", requireAuthenticatedUser, upload.array("file"), handleResumeUpload);
+router.post("/", requireAuthenticatedUser, upload.array("file"), uploadResume);
 
 export default router;
