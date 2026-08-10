@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { Source } from "@daily-interview-coach/shared-types";
 import styles from "./ResumeUploadForm.module.scss";
 
 /**
- * 대상 스펙: .claude/artifacts/spec/이력서-업로드-UI_spec.md (v1.1, Approved).
+ * 대상 스펙: .claude/artifacts/spec/이력서-업로드-UI_spec.md (v1.1, Approved),
+ * .claude/artifacts/spec/질문-생성_spec.md (v2) "프론트엔드 — ResumeUploadForm.tsx 확장" 절.
  *
  * 아키텍처는 GateForm.tsx와 동일: 브라우저가 apps/api를
  * `${NEXT_PUBLIC_API_BASE_URL}/api/sources/resume`로 credentials:"include" 직접 호출한다.
@@ -15,12 +16,18 @@ import styles from "./ResumeUploadForm.module.scss";
  * `errorSource`는 errorMessage(표시용 문자열)와 별개로 에러의 출처(client/server)를
  * 구분하기 위한 상태다 — 서버 에러 이후에는 재선택 없이 곧바로 재시도할 수 있어야 하므로
  * "client" 사전 검증 실패일 때만 제출 버튼을 잠근다.
+ *
+ * 업로드 성공(201) 직후 자동으로 POST /api/questions/generate를 트리거한다
+ * (`questionGenerationStatus`). `uploadedSourceRef`는 응답 도착 시점의 "현재" uploadedSource를
+ * 참조하기 위한 stale-response 가드용 ref이고, `generationRequestedSourceIdRef`는 동일
+ * sourceId에 대해 자동 트리거가 중복 발생(StrictMode 등)하지 않도록 막는 가드다.
  */
 
 const MAX_FILE_SIZE_BYTES = 5_242_880; // 5MB
 const ALLOWED_EXTENSION_PATTERN = /\.(pdf|txt)$/i;
 
 type ErrorSource = "client" | "server" | null;
+type QuestionGenerationStatus = "idle" | "generating" | "ready" | "error";
 
 function validateResumeFile(file: File): string | null {
   if (file.size === 0) {
@@ -51,9 +58,68 @@ export function ResumeUploadForm() {
   const [errorSource, setErrorSource] = useState<ErrorSource>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedSource, setUploadedSource] = useState<Source | null>(null);
+  const [questionGenerationStatus, setQuestionGenerationStatus] =
+    useState<QuestionGenerationStatus>("idle");
+  const [generationErrorMessage, setGenerationErrorMessage] = useState<string | null>(null);
 
   const isClientValidationError = errorSource === "client";
   const isSubmitDisabled = !selectedFile || isUploading || isClientValidationError;
+
+  // stale-response 가드: 응답 도착 시점의 "현재" uploadedSource를 참조하기 위한 ref.
+  // 렌더링 중 대입은 부작용이 없는 단순 값 동기화이므로 useEffect가 필요 없다.
+  const uploadedSourceRef = useRef<Source | null>(uploadedSource);
+  uploadedSourceRef.current = uploadedSource;
+
+  // 동일 sourceId에 대한 자동 생성 트리거 중복 호출 가드(React StrictMode 등).
+  const generationRequestedSourceIdRef = useRef<string | null>(null);
+
+  async function generateQuestions(sourceId: string): Promise<void> {
+    setQuestionGenerationStatus("generating");
+    setGenerationErrorMessage(null);
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/questions/generate`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sourceId }),
+        },
+      );
+
+      if (uploadedSourceRef.current?.id !== sourceId) return;
+
+      if (response.status === 401) {
+        router.replace("/gate?reason=expired&next=%2F");
+        return;
+      }
+
+      const body = await response.json();
+
+      if (!response.ok) {
+        setQuestionGenerationStatus("error");
+        setGenerationErrorMessage(
+          body.message ?? "질문 생성에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        );
+        return;
+      }
+
+      setQuestionGenerationStatus("ready");
+    } catch {
+      if (uploadedSourceRef.current?.id !== sourceId) return;
+      setQuestionGenerationStatus("error");
+      setGenerationErrorMessage("일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+    }
+  }
+
+  useEffect(() => {
+    if (!uploadedSource) return;
+    if (generationRequestedSourceIdRef.current === uploadedSource.id) return;
+    generationRequestedSourceIdRef.current = uploadedSource.id;
+    void generateQuestions(uploadedSource.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadedSource]);
 
   function selectFile(event: ChangeEvent<HTMLInputElement>): void {
     const file = event.target.files?.[0] ?? null;
@@ -116,11 +182,19 @@ export function ResumeUploadForm() {
     setErrorMessage(null);
     setErrorSource(null);
     setUploadedSource(null);
+    setQuestionGenerationStatus("idle");
+    setGenerationErrorMessage(null);
+    generationRequestedSourceIdRef.current = null;
+  }
+
+  function proceedToToday(): void {
+    if (questionGenerationStatus !== "ready") return;
+    router.push("/today");
   }
 
   if (uploadedSource) {
     return (
-      <div className={`${styles.card} relative w-full max-w-md rounded-sm p-8 sm:p-10`}>
+      <div className={`${styles.card} relative w-full max-w-md p-8 sm:p-10`}>
         <span aria-hidden className={styles.cornerFold} />
         <div role="status" className={`${styles.ticket} space-y-5`}>
           <div className="space-y-1.5">
@@ -150,13 +224,34 @@ export function ResumeUploadForm() {
             <div className="space-y-1.5">
               <button
                 type="button"
-                disabled
-                aria-disabled="true"
+                disabled={questionGenerationStatus !== "ready"}
+                aria-disabled={questionGenerationStatus !== "ready"}
+                onClick={proceedToToday}
                 className="rounded-sm bg-ink/10 px-4 py-2 text-sm font-medium text-mute disabled:cursor-not-allowed"
               >
                 면접 진행하기
               </button>
-              <p className="text-xs text-mute">준비 중입니다.</p>
+              {questionGenerationStatus === "generating" && (
+                <p className="text-xs text-mute">이력서 저장 완료 · 질문을 생성 중입니다</p>
+              )}
+              {questionGenerationStatus === "ready" && (
+                <p className="text-xs text-mute">질문이 준비됐어요 · 면접 준비를 시작할까요?</p>
+              )}
+              {questionGenerationStatus === "error" && (
+                <>
+                  <p className="text-xs text-clay">질문 생성에 실패했어요</p>
+                  {generationErrorMessage && (
+                    <p className="text-xs text-clay">{generationErrorMessage}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void generateQuestions(uploadedSource.id)}
+                    className="text-xs font-medium text-indigo underline-offset-4 hover:underline focus-visible:underline"
+                  >
+                    다시 시도
+                  </button>
+                </>
+              )}
             </div>
             <button
               type="button"
@@ -172,7 +267,7 @@ export function ResumeUploadForm() {
   }
 
   return (
-    <div className={`${styles.card} relative w-full max-w-md rounded-sm p-8 sm:p-10`}>
+    <div className={`${styles.card} relative w-full max-w-md p-8 sm:p-10`}>
       <span aria-hidden className={styles.cornerFold} />
       <form onSubmit={uploadResume} noValidate className="space-y-6">
         <div className="space-y-1.5">

@@ -2,22 +2,44 @@
 // 종이 카드 질감(코너 접힘, 티켓 절취선)과 등장 모션만 SCSS로 분리했다.
 // 색상은 Tailwind @theme(globals.css)이 :root에 노출한 CSS 변수를 그대로 재사용한다.
 
+$corner-fold-size: 1.375rem;
+
 .card {
   position: relative;
   background: var(--color-paper);
-  border: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
+  // 우상단 코너를 실제로 잘라내야 '접힘'으로 읽힌다 — 배경만 덧칠하면 카드 보더가
+  // 접힘 영역을 그대로 관통해서 코너에 붙인 작은 상자처럼 보인다.
+  clip-path: polygon(
+    0 0,
+    calc(100% - #{$corner-fold-size}) 0,
+    100% #{$corner-fold-size},
+    100% 100%,
+    0 100%
+  );
+  // clip-path가 border와 border-radius까지 함께 잘라내므로 보더 대신 drop-shadow로
+  // 윤곽을 잡는다. box-shadow는 clip 바깥으로 렌더되지 않아 이 경우 쓸 수 없고,
+  // drop-shadow만 잘린 실제 모양(대각선 변 포함)을 따라간다.
+  filter: drop-shadow(0 0 0.5px color-mix(in srgb, var(--color-ink) 28%, transparent))
+    drop-shadow(0 1px 2px color-mix(in srgb, var(--color-ink) 10%, transparent));
 }
 
 .cornerFold {
   position: absolute;
   top: 0;
   right: 0;
-  width: 1.375rem;
-  height: 1.375rem;
-  background: linear-gradient(135deg, transparent 50%, var(--color-stone) 50%);
-  border-left: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
+  width: $corner-fold-size;
+  height: $corner-fold-size;
   pointer-events: none;
+  // 접는 선(crease)은 사각형의 좌상↔우하 대각선이고, 여기서 새로 생기는 선은 이것 하나뿐이다.
+  // 바깥(우상) 삼각형은 .card의 clip-path가 이미 잘라내 배경이 비치므로 투명하게 두고,
+  // 안쪽 삼각형만 '종이 뒷면' 색(배경색이 아니라 paper를 살짝 어둡게 한 색)으로 칠한다.
+  background: linear-gradient(
+    to bottom left,
+    transparent 50%,
+    color-mix(in srgb, var(--color-ink) 12%, transparent) 50%,
+    color-mix(in srgb, var(--color-ink) 12%, transparent) calc(50% + 1px),
+    color-mix(in srgb, var(--color-ink) 7%, var(--color-paper)) calc(50% + 1px)
+  );
 }
 
 .perforation {

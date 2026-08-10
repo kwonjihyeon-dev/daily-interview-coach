@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1106.0",
     "@daily-interview-coach/shared-types": "workspace:*",
     "@supabase/supabase-js": "^2.112.2",
     "cookie-parser": "^1.4.7",

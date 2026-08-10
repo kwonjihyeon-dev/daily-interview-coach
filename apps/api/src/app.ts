@@ -3,7 +3,7 @@ import cors from "cors";
 import express, { Express } from "express";
 import resumeRouter from "./routes/resume";
 import authRouter from "./routes/auth";
-import { requireAuthenticatedUser } from "./middleware/requireAuthenticatedUser";
+import questionsRouter from "./routes/questions";
 
 /**
  * 대상 스펙: .claude/artifacts/spec/이메일-방문자-게이트_spec.md (v2)
@@ -52,9 +52,8 @@ app.use("/api/sessions", authRouter);
 // 미들웨어를 직접 체이닝해 사용한다.
 app.use("/api/sources/resume", resumeRouter);
 
-app.get("/api/questions/today", requireAuthenticatedUser, (_req, res) => {
-  // TODO: Supabase에서 미답변 질문 조회 (PRD 4. 핵심 플로우 3단계)
-  res.json({ question: null });
-});
+// /api/questions는 이 라우터 내부(questions.ts)에서 requireAuthenticatedUser 미들웨어를
+// 직접 체이닝해 사용한다(resume.ts와 동일 패턴).
+app.use("/api/questions", questionsRouter);
 
 export default app;

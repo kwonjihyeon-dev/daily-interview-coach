@@ -328,6 +328,9 @@ describe("ResumeUploadForm", () => {
     });
 
     it("확장자가 .docx인 파일을 선택하면 네트워크 요청 없이 즉시 지원하지 않는 형식 에러가 표시된다", async () => {
+      // 의도: accept 속성은 권고 UI일 뿐(모든 파일 선택/드래그드롭으로 우회 가능)이라,
+      // 우회해 들어온 비허용 파일을 클라 검증(validateResumeFile)이 잡는지 확인한다
+      // (그래서 selectFile 헬퍼가 applyAccept:false로 accept 필터를 끈다).
       // Given
       render(<ResumeUploadForm />);
       const file = createFile(
