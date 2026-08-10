@@ -40,6 +40,7 @@
     ↓
 [3] @developer — 테스트를 통과시키는 최소 구현 + 리팩토링 (TDD Green + Refactor)
     출력: apps/{web,api}/src/ 하위 구현 파일
+           .claude/artifacts/developer/[기능명]_developer.md
     ↓
     ⏸️ 승인 대기 → 완료
 ```
@@ -70,8 +71,10 @@
 .claude/artifacts/
 ├── spec/
 │   └── [기능명]_spec.md
-└── test/
-    └── [기능명]_test.md
+├── test/
+│   └── [기능명]_test.md
+└── developer/
+    └── [기능명]_developer.md
 
 apps/web/src/
 └── **/[파일명].test.tsx   (컴포넌트 옆에 배치)
@@ -80,7 +83,7 @@ apps/api/src/
 └── **/[파일명].test.ts    (라우트/서비스 옆에 배치)
 ```
 
--   기능명: 한글 또는 영문 소문자, 공백 대신 하이픈
+-   기능명: 영문 소문자, 공백 대신 하이픈 (예: `resume-upload`, `email-visitor-gate`)
 -   커밋은 사용자가 명시적으로 요청하거나 phase가 끝날 때 커밋 승인 요청 후 승인 시에만 수행 (단계 완료마다 자동 커밋하지 않음)
 
 ## 일반 컨벤션

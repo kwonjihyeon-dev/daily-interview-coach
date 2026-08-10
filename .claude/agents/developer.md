@@ -68,6 +68,8 @@ pnpm typecheck              # 타입 체크 (turbo run typecheck)
 
 ## 출력 형식
 
+작업 완료 후 아래 내용을 `.claude/artifacts/developer/[기능명]_developer.md`에 저장하고, 동일한 내용을 최종 응답으로도 보고합니다 (기능명은 spec/test 단계와 동일한 이름 사용).
+
 ```markdown
 ## 구현 완료: [기능명]
 
@@ -85,6 +87,9 @@ pnpm typecheck              # 타입 체크 (turbo run typecheck)
 
 ### 리팩토링
 [통과 후 개선한 내용, 없다면 "특별한 개선 없음"]
+
+### 스펙과 다르게 판단/구현한 지점
+[스펙의 예시 코드/문구와 다르게 구현했거나, 스펙이 다루지 않은 부분을 임의로 결정한 경우 그 내용과 근거. 없다면 "없음"]
 
 **Status**: Implementation Complete
 ```

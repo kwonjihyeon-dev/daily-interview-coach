@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+/*
+ * 디자인 토큰 (frontend-design 패스, "Prep Desk / Boarding Pass" 컨셉).
+ * 근거: .claude/artifacts/developer/이력서-업로드-UI_developer.md 참고 —
+ * 이 화면이 이후 "오늘의 질문" 등 화면의 톤을 정하는 시작점이라 팔레트/타입을
+ * 전역 토큰으로 뽑아 재사용 가능하게 했다.
+ */
+@theme {
+    --color-stone: #eae7de;
+    --color-paper: #f7f5ef;
+    --color-ink: #20241f;
+    --color-mute: #8a8578;
+    --color-indigo: #33418f;
+    --color-indigo-dim: #333f7a1a;
+    --color-moss: #3f6b4e;
+    --color-moss-dim: #3f6b4e1a;
+    --color-clay: #b4552f;
+    --color-clay-dim: #b4552f14;
+
+    --font-display: var(--font-pretendard), ui-sans-serif, system-ui, sans-serif;
+    --font-body: var(--font-pretendard), ui-sans-serif, system-ui, sans-serif;
+    --font-mono: var(--font-plex-mono), ui-monospace, 'SFMono-Regular', monospace;
+}
+
+body {
+    background-color: var(--color-stone);
+    color: var(--color-ink);
+}

@@ -1,8 +1,12 @@
+import { ResumeUploadForm } from "./ResumeUploadForm";
+
 export default function HomePage() {
   return (
-    <main>
-      <h1>매일 면접 코치</h1>
-      <p>스캐폴딩 완료 — 온보딩/오늘의 질문 화면은 Phase 3에서 구현.</p>
+    <main className="flex min-h-screen flex-col items-center justify-center gap-8 px-4 py-16">
+      <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">
+        매일 면접 코치
+      </h1>
+      <ResumeUploadForm />
     </main>
   );
 }
