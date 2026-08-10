@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { Source } from "@daily-interview-coach/shared-types";
+import { StrictMode } from "react";
+import type { Question, Source } from "@daily-interview-coach/shared-types";
 import { ResumeUploadForm } from "./ResumeUploadForm";
 
 /**
@@ -29,8 +30,9 @@ import { ResumeUploadForm } from "./ResumeUploadForm";
  */
 
 const routerReplaceMock = vi.hoisted(() => vi.fn());
+const routerPushMock = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: routerReplaceMock }),
+  useRouter: () => ({ replace: routerReplaceMock, push: routerPushMock }),
 }));
 
 const fetchMock = vi.hoisted(() => vi.fn());
@@ -69,6 +71,24 @@ async function selectFile(file: File) {
   const user = userEvent.setup({ applyAccept: false });
   await user.upload(screen.getByLabelText("이력서 파일"), file);
   return user;
+}
+
+function buildQuestion(overrides: Partial<Question> = {}): Question {
+  return {
+    id: "question-id-1",
+    userId: "user-1",
+    sourceId: "b7e6c1d2-4f3a-4e2b-9c1a-1234567890ab",
+    category: "Next.js/SSR",
+    text: "SSR의 트레이드오프에 대해 어떻게 생각하나요?",
+    origin: "ai",
+    createdAt: "2026-08-08T10:00:05+09:00",
+    ...overrides,
+  };
+}
+
+/** 절대 resolve/reject 되지 않는 fetch 응답 — "아직 응답 전" 상태를 고정하기 위함. */
+function pendingForever(): Promise<never> {
+  return new Promise(() => undefined);
 }
 
 function submitButton() {
@@ -149,13 +169,16 @@ describe("ResumeUploadForm", () => {
     });
 
     it("201 응답을 받으면 폼이 사라지고 성공 패널이 나타나며 source 정보가 표시된다", async () => {
-      // Given
+      // Given: 업로드는 성공하지만, 뒤이어 자동으로 트리거되는 질문 생성 요청은 이 테스트의
+      // 관심사가 아니므로(대상 스펙: 질문-생성_spec.md 절 참고) 응답하지 않는 상태로 묶어둔다.
       const source = buildSource({
         id: "source-id-123",
         createdAt: "2026-08-08T10:00:00+09:00",
         rawText: "짧은 이력서 본문입니다.",
       });
-      fetchMock.mockResolvedValue(jsonResponse(201, { source }));
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(201, { source }))
+        .mockReturnValue(new Promise(() => undefined));
       render(<ResumeUploadForm />);
       const file = createFile("resume.pdf", 1024, "application/pdf");
       const user = await selectFile(file);
@@ -171,11 +194,14 @@ describe("ResumeUploadForm", () => {
       expect(successPanel).toHaveTextContent(source.createdAt);
       expect(successPanel).toHaveTextContent(source.rawText);
 
-      // And: "면접 진행하기" 버튼은 항상 비활성화 상태다
+      // And(v2 — 질문-생성_spec.md): 업로드 직후 자동으로 질문 생성이 트리거되며, 아직
+      // 응답 전이므로 "면접 진행하기" 버튼은 비활성화 상태고 생성 중 문구가 보인다.
+      // (기존 정적 "준비 중입니다." 문구는 이 스펙에서 상태 기반 문구로 대체되었다.)
       const proceedButton = screen.getByRole("button", { name: "면접 진행하기" });
       expect(proceedButton).toBeDisabled();
-      expect(proceedButton).toHaveAttribute("aria-disabled", "true");
-      expect(screen.getByText("준비 중입니다.")).toBeInTheDocument();
+      expect(
+        screen.getByText("이력서 저장 완료 · 질문을 생성 중입니다"),
+      ).toBeInTheDocument();
     });
 
     it("rawText 길이가 정확히 100자면 미리보기에 '...'가 붙지 않는다", async () => {
@@ -233,9 +259,12 @@ describe("ResumeUploadForm", () => {
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
-    it("'면접 진행하기' 버튼은 비활성화 상태이므로 클릭을 시도해도 아무 동작이 일어나지 않는다", async () => {
-      // Given
-      fetchMock.mockResolvedValue(jsonResponse(201, { source: buildSource() }));
+    it("질문 생성이 진행 중(questionGenerationStatus='generating')인 동안에는 '면접 진행하기' 버튼이 비활성화 상태이므로 클릭을 시도해도 아무 동작이 일어나지 않는다", async () => {
+      // Given(v2 — 질문-생성_spec.md): 업로드는 성공했지만 질문 생성 요청이 아직 응답하지
+      // 않은 상태(CTA가 활성화되는 것은 생성까지 완료된 "ready" 상태부터다).
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(201, { source: buildSource() }))
+        .mockReturnValue(new Promise(() => undefined));
       render(<ResumeUploadForm />);
       const user = await selectFile(createFile("resume.pdf", 1024, "application/pdf"));
       await user.click(submitButton());
@@ -424,10 +453,13 @@ describe("ResumeUploadForm", () => {
       const retryButton = screen.getByRole("button", { name: "이력서 업로드하기" });
       expect(retryButton).not.toBeDisabled();
 
-      // And: 재클릭하면 같은 파일로 두 번째 업로드 요청이 전송된다.
+      // And: 재클릭하면 같은 파일로 두 번째 업로드 요청이 전송된다. (v2 — 질문-생성_spec.md:
+      // 이번에는 업로드가 성공하므로 곧바로 자동 질문 생성 요청도 트리거되어 총 3번째
+      // fetch 호출이 발생한다 — 이 테스트의 관심사는 "두 번째 호출(업로드 재시도)"이므로
+      // 인덱스 1로 그 요청만 확인한다.)
       fetchMock.mockResolvedValueOnce(jsonResponse(201, { source: buildSource() }));
       await user.click(retryButton);
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       const secondCallFormData = fetchMock.mock.calls[1][1].body as FormData;
       expect((secondCallFormData.get("file") as File).name).toBe("resume.pdf");
     });
@@ -520,6 +552,226 @@ describe("ResumeUploadForm", () => {
 
       // Then
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * 대상 스펙: .claude/artifacts/spec/질문-생성_spec.md (v2) "프론트엔드 —
+   * ResumeUploadForm.tsx 확장" 절. 업로드 성공(201) 직후 자동으로 POST
+   * /api/questions/generate가 트리거되는 파이프라인(questionGenerationStatus)을 검증한다.
+   */
+  describe("질문 생성 자동 트리거 — 정상 시나리오", () => {
+    it("업로드 성공 직후 클릭 없이 자동으로 POST /api/questions/generate가 { sourceId: uploadedSource.id }로 1회 호출된다", async () => {
+      // Given
+      const source = buildSource({ id: "uploaded-source-id" });
+      fetchMock.mockResolvedValueOnce(jsonResponse(201, { source })).mockReturnValue(pendingForever());
+      render(<ResumeUploadForm />);
+      const user = await selectFile(createFile("resume.pdf", 1024, "application/pdf"));
+
+      // When
+      await user.click(submitButton());
+      await screen.findByRole("status");
+
+      // Then
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      const [url, options] = fetchMock.mock.calls[1];
+      expect(url).toBe(`${API_BASE_URL}/api/questions/generate`);
+      expect(options).toMatchObject({ method: "POST", credentials: "include" });
+      expect(JSON.parse(options.body as string)).toEqual({ sourceId: source.id });
+    });
+
+    it("질문 생성이 201로 성공하면 '질문이 준비됐어요 · 면접 준비를 시작할까요?' 문구로 바뀌고 '면접 진행하기' 버튼이 활성화되며, 응답의 question 필드는 화면에 사용되지 않는다", async () => {
+      // Given
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(201, { source: buildSource() }))
+        .mockResolvedValueOnce(
+          jsonResponse(201, { questions: [buildQuestion()], question: buildQuestion() }),
+        );
+      render(<ResumeUploadForm />);
+      const user = await selectFile(createFile("resume.pdf", 1024, "application/pdf"));
+
+      // When
+      await user.click(submitButton());
+      await screen.findByRole("status");
+
+      // Then
+      expect(
+        await screen.findByText("질문이 준비됐어요 · 면접 준비를 시작할까요?"),
+      ).toBeInTheDocument();
+      const proceedButton = screen.getByRole("button", { name: "면접 진행하기" });
+      expect(proceedButton).not.toBeDisabled();
+      // And: question.text 등 응답 내용이 화면 어디에도 렌더링되지 않는다(무시됨)
+      expect(screen.queryByText(buildQuestion().text)).not.toBeInTheDocument();
+    });
+
+    it("'면접 진행하기' 버튼이 활성화된 상태에서 클릭하면 router.push('/today')가 호출된다", async () => {
+      // Given
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(201, { source: buildSource() }))
+        .mockResolvedValueOnce(
+          jsonResponse(201, { questions: [buildQuestion()], question: buildQuestion() }),
+        );
+      render(<ResumeUploadForm />);
+      const user = await selectFile(createFile("resume.pdf", 1024, "application/pdf"));
+      await user.click(submitButton());
+      await screen.findByText("질문이 준비됐어요 · 면접 준비를 시작할까요?");
+
+      // When
+      await user.click(screen.getByRole("button", { name: "면접 진행하기" }));
+
+      // Then
+      expect(routerPushMock).toHaveBeenCalledWith("/today");
+    });
+  });
+
+  describe("질문 생성 자동 트리거 — 엣지 케이스", () => {
+    it("질문 생성이 500 generation_failed로 실패하면 '질문 생성에 실패했어요'와 서버 message, '다시 시도' 버튼이 표시된다", async () => {
+      // Given
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(201, { source: buildSource() }))
+        .mockResolvedValueOnce(
+          jsonResponse(500, {
+            error: "generation_failed",
+            message: "질문 생성에 실패했습니다. 잠시 후 다시 시도해주세요.",
+          }),
+        );
+      render(<ResumeUploadForm />);
+      const user = await selectFile(createFile("resume.pdf", 1024, "application/pdf"));
+
+      // When
+      await user.click(submitButton());
+      await screen.findByRole("status");
+
+      // Then
+      expect(await screen.findByText("질문 생성에 실패했어요")).toBeInTheDocument();
+      expect(
+        screen.getByText("질문 생성에 실패했습니다. 잠시 후 다시 시도해주세요."),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
+    });
+
+    it("생성 실패 후 '다시 시도'를 클릭하면 동일한 sourceId로 재요청하고, 화면은 다시 '생성 중' 상태로 돌아간다", async () => {
+      // Given
+      const source = buildSource({ id: "retry-source-id" });
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(201, { source }))
+        .mockResolvedValueOnce(
+          jsonResponse(500, {
+            error: "generation_failed",
+            message: "질문 생성에 실패했습니다. 잠시 후 다시 시도해주세요.",
+          }),
+        );
+      render(<ResumeUploadForm />);
+      const user = await selectFile(createFile("resume.pdf", 1024, "application/pdf"));
+      await user.click(submitButton());
+      await screen.findByText("질문 생성에 실패했어요");
+      fetchMock.mockClear();
+      fetchMock.mockReturnValue(pendingForever());
+
+      // When
+      await user.click(screen.getByRole("button", { name: "다시 시도" }));
+
+      // Then
+      expect(
+        await screen.findByText("이력서 저장 완료 · 질문을 생성 중입니다"),
+      ).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, options] = fetchMock.mock.calls[0];
+      expect(url).toBe(`${API_BASE_URL}/api/questions/generate`);
+      expect(JSON.parse(options.body as string)).toEqual({ sourceId: source.id });
+    });
+
+    it("생성 요청이 진행 중인 상태에서 '다른 파일 업로드'로 리셋하면, 이후 뒤늦게 도착한 생성 응답은 화면에 반영되지 않는다", async () => {
+      // Given
+      let resolveGenerate: (value: unknown) => void = () => undefined;
+      fetchMock.mockResolvedValueOnce(jsonResponse(201, { source: buildSource() }));
+      fetchMock.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveGenerate = resolve;
+        }),
+      );
+      render(<ResumeUploadForm />);
+      const user = await selectFile(createFile("resume.pdf", 1024, "application/pdf"));
+      await user.click(submitButton());
+      await screen.findByRole("status");
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+      // When: 생성 응답이 도착하기 전에 폼을 리셋한다
+      await user.click(screen.getByRole("button", { name: "다른 파일 업로드" }));
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+      // 그 후 이전 생성 요청의 응답이 뒤늦게 도착한다
+      resolveGenerate(jsonResponse(201, { questions: [], question: null }));
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // Then: 이미 리셋되었으므로 응답은 무시되고 화면 상태가 바뀌지 않는다
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("질문이 준비됐어요 · 면접 준비를 시작할까요?"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("React StrictMode로 effect가 2회 실행되어도 POST /api/questions/generate 호출은 정확히 1회만 발생한다", async () => {
+      // Given
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(201, { source: buildSource() }))
+        .mockReturnValue(pendingForever());
+      render(
+        <StrictMode>
+          <ResumeUploadForm />
+        </StrictMode>,
+      );
+      const user = await selectFile(createFile("resume.pdf", 1024, "application/pdf"));
+
+      // When
+      await user.click(submitButton());
+      await screen.findByRole("status");
+
+      // Then
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("질문 생성 자동 트리거 — 에러 케이스", () => {
+    it("질문 생성 요청 중 서버가 401을 반환하면 즉시 router.replace('/gate?reason=expired&next=%2F')로 리다이렉트된다", async () => {
+      // Given
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(201, { source: buildSource() }))
+        .mockResolvedValueOnce(
+          jsonResponse(401, { error: "unauthorized", message: "인증이 만료되었습니다." }),
+        );
+      render(<ResumeUploadForm />);
+      const user = await selectFile(createFile("resume.pdf", 1024, "application/pdf"));
+
+      // When
+      await user.click(submitButton());
+      await screen.findByRole("status");
+
+      // Then
+      await vi.waitFor(() =>
+        expect(routerReplaceMock).toHaveBeenCalledWith("/gate?reason=expired&next=%2F"),
+      );
+    });
+
+    it("질문 생성 요청 중 네트워크가 단절되면 일시적 오류 메시지와 '다시 시도' 버튼이 표시된다", async () => {
+      // Given
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(201, { source: buildSource() }))
+        .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      render(<ResumeUploadForm />);
+      const user = await selectFile(createFile("resume.pdf", 1024, "application/pdf"));
+
+      // When
+      await user.click(submitButton());
+      await screen.findByRole("status");
+
+      // Then
+      expect(
+        await screen.findByText("일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요."),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
     });
   });
 });

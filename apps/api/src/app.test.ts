@@ -22,10 +22,49 @@ import request from "supertest";
  *   검증한다.
  * - 게이트 엔드포인트가 `POST /api/auth/verify-email` → `POST /api/sessions`로 RESTful하게
  *   재명명되고 성공 상태코드도 `200` → `201`로 바뀐다(스펙 결정 #8).
+ *
+ * ## 질문-생성 스펙(v2) 반영에 따른 추가 메모
+ *
+ * `.claude/artifacts/spec/질문-생성_spec.md`에 따라 `GET /api/questions/today`의 인라인
+ * stub이 실제 `questions` 라우터(`app.use("/api/questions", questionsRouter)`)로 교체된다.
+ * 이 파일은 여전히 "배선"만 검증하는 것이 목적이고, `questions` 라우트 자체의 상세 동작은
+ * `routes/questions.test.ts`가 전담한다 — 그래서 아래 `supabaseClient`/`bedrockClient` mock은
+ * 실제 쿼리 결과를 세밀하게 통제할 필요 없이, 라우터 교체 이후에도 기존 CORS/인증 배선
+ * 테스트들이 (진짜 Supabase/Bedrock 네트워크 호출 없이) 계속 통과하도록 하는 안전망이다.
  */
 
 const userLookupMock = vi.hoisted(() => ({ lookupUserByEmail: vi.fn() }));
 vi.mock("./lib/userLookup", () => userLookupMock);
+
+// 안전망: questions 라우터가 실제로 마운트된 뒤에도 이 파일의 CORS/인증 배선 테스트가
+// 진짜 Supabase 네트워크 호출 없이 통과하도록, 임의의 체이닝 메서드에도 안전한 빈 결과를
+// 돌려주는 제네릭 mock을 둔다(쿼리 세부 동작 검증은 routes/questions.test.ts의 몫).
+vi.mock("./lib/supabaseClient", () => {
+  function chainable(): unknown {
+    const proxy: unknown = new Proxy(
+      {},
+      {
+        get(_t, prop) {
+          if (prop === "then") {
+            return (resolve: (v: unknown) => void) =>
+              resolve({ data: [], error: null, count: 0 });
+          }
+          if (prop === "single" || prop === "maybeSingle") {
+            return () => ({
+              then: (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+            });
+          }
+          return () => proxy;
+        },
+      },
+    );
+    return proxy;
+  }
+  return { supabase: { from: () => chainable() } };
+});
+vi.mock("./lib/bedrockClient", () => ({
+  generateInterviewQuestions: vi.fn().mockResolvedValue("[]"),
+}));
 
 import app from "./app";
 
