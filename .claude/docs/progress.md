@@ -21,4 +21,4 @@ PRD([`prd.md`](./prd.md)) 기준 현재 상태와 다음 액션만 기록합니�
 ## 참고
 
 - `frontend-design` Claude Code 플러그인 설치됨 (UI 작업 시 활용)
-- 클라이언트 데이터 계층은 TanStack Query로 표준화하기로 결정 — 근거는 [`client-data-strategy.md`](./client-data-strategy.md)
+- 클라이언트 데이터 계층은 서버 우선(RSC 읽기 + Server Actions)으로 확정, TanStack Query 도입 안 함 — 근거는 [`deploy-topology-review.md`](./deploy-topology-review.md) 4절
