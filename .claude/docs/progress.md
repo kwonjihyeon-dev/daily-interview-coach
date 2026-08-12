@@ -15,8 +15,12 @@ PRD([`prd.md`](./prd.md)) 기준 현재 상태와 다음 액션만 기록합니�
 
 1. ~~이력서 업로드 UI~~ — 완료
 2. ~~AI 질문 생성 API (+ 미리 채워두기 로직)~~ — 완료 (⚠️ prefetch 미답변 카운트 쿼리 실제 DB 검증은 남음)
-3. **AI 답변 피드백 API**
-4. **Notion 연동** — 2차로 미룸 (백엔드+UI 둘 다 필요하고, 질문 생성/피드백 어느 쪽에도 기능적 의존성이 없어 순서상 이유가 없음. 이력서 하나만으로도 vertical slice 검증 가능)
+3. **클라이언트 데이터 계층을 서버 우선(RSC + Server Actions)으로 전환** — `ResumeUploadForm`/`GateForm`의 인라인 `fetch(NEXT_PUBLIC_...)`를 Server Action으로 전환. 답변 피드백보다 먼저 하는 이유: 뒤로 미루면 답변 피드백 UI를 인라인 fetch로 짜고 다시 고치게 됨 ([`deploy-topology-review.md`](./deploy-topology-review.md) 4절). 전환 시 주의: Server Action 요청 바디 기본 1MB 제한 → 이력서 5MB 업로드에 `serverActions.bodySizeLimit` 설정 필요, Server Action은 클라이언트당 직렬 디스패치라 긴 Bedrock 질문 생성 호출은 액션 큐 밖(현행 유지 또는 Route Handler) 검토
+4. **AI 답변 피드백 API + UI**
+5. **Phase 4 배포 — EC2 코로케이션** (nginx로 `/api`를 같은 도메인에, Express는 `127.0.0.1:3001` 바인딩). 착수 전 체크: ① AWS Budget Alert 설정 ② 로컬에서 `next build && next start` 프로덕션 빌드 확인. 상시 과금이므로 기능 구현이 끝난 뒤에 켠다 — 조기 배포로 얻을 환경 차이 검증이 코로케이션(동일 오리진)에선 거의 없음
+6. **Notion 연동** — 2차로 미룸 (백엔드+UI 둘 다 필요하고, 질문 생성/피드백 어느 쪽에도 기능적 의존성이 없어 순서상 이유가 없음. 이력서 하나만으로도 vertical slice 검증 가능)
+
+**별도 트랙 (순서 무관)**: API Gateway + Lambda 실습 — CDK로 HTTP API + Lambda를 한 번 올려 event 형태 확인 + 콜드스타트 실측 후 `remove`로 정리. 상시 비용 없음
 
 ## 참고
 

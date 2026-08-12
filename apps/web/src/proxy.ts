@@ -3,7 +3,7 @@ import { VISITOR_COOKIE_NAME, isValidVisitorEmailCookieValue } from "./lib/visit
 
 /**
  * 대상 스펙: .claude/artifacts/spec/이메일-방문자-게이트_spec.md
- * "apps/web/src/middleware.ts" 절.
+ * "apps/web/src/middleware.ts"(Next 16에서 `proxy.ts`로 이름 변경) 절.
  *
  * 쿠키 형식만 검사한다(DB 재조회는 apps/api 호출 시점에 위임) — Edge 미들웨어에서
  * 매 네비게이션마다 DB 호출을 하면 모든 페이지 전환에 지연이 생기기 때문이다.

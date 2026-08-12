@@ -66,4 +66,4 @@
 
 ## 5. 서버와 어떻게 대화하나 (한 줄 모델)
 
-이 컴포넌트는 **RSC/apiClient를 안 쓴다.** `"use client"`에서 브라우저가 `NEXT_PUBLIC_API_BASE_URL`로 **직접 `fetch`** + `credentials:"include"`(쿠키 실어보냄). 업로드는 `FormData`(Content-Type 수동 설정 안 함 → 브라우저가 multipart boundary 자동 생성), 질문 생성은 JSON. — 클라이언트 "쓰기" 패턴의 실물이 이 파일이다([`client-data-strategy.md`](../../../docs/client-data-strategy.md) 참고).
+이 컴포넌트는 **RSC/apiClient를 안 쓴다.** `"use client"`에서 브라우저가 `NEXT_PUBLIC_API_BASE_URL`로 **직접 `fetch`** + `credentials:"include"`(쿠키 실어보냄). 업로드는 `FormData`(Content-Type 수동 설정 안 함 → 브라우저가 multipart boundary 자동 생성), 질문 생성은 JSON. — 클라이언트 "쓰기" 패턴의 실물이 이 파일이다. ⚠️ 이후 클라이언트 데이터 전략이 서버 우선(RSC 읽기 + Server Actions)으로 확정되어 이 직접 `fetch` 방식은 Server Action으로 전환 대상이다([`deploy-topology-review.md`](../../../docs/deploy-topology-review.md) 4절 참고).

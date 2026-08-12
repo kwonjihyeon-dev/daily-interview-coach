@@ -82,6 +82,8 @@ Bedrock에는 Anthropic 외에도 Amazon Nova, Meta Llama 등 더 저렴한 모�
 
 **결정: Lambda + API Gateway.** 사용자가 본인 1명이라 트래픽이 하루 몇 번 수준 — 서버리스가 비용/운영 부담 모두에서 압도적으로 유리함. Express 앱은 `serverless-http` 같은 어댑터로 감싸면 그대로 Lambda 핸들러로 배포 가능. **리전: `ap-northeast-2` (서울)** — 계정 확인 완료.
 
+> **결정 변경 (2026-08-11)**: `apps/api`의 프로덕션 배포는 Lambda + API Gateway가 아니라 **`apps/web`(Next)과 같은 EC2 한 대에 코로케이션**(nginx 리버스 프록시로 동일 오리진, Express는 `127.0.0.1:3001` 바인딩)으로 재결정됨. 쿠키 기반 서버 사이드 인증 게이트(3.7) 때문에 Next가 상시 서버를 요구하게 되면서, 1인 트래픽 패턴에서 사실상 매 요청이 콜드스타트인 Lambda를 감수할 이유가 사라진 것이 계기. 근거·트레이드오프·검토한 대안은 [`deploy-topology-review.md`](./deploy-topology-review.md) 3절 참고. 단 `serverless-http` 래핑은 되돌릴 수 있도록 유지하고, 리마인더(3.8)의 EventBridge + Lambda 경로는 이 변경과 무관하게 그대로 유지.
+
 ### 3.3 모노레포 구성 — Next.js 풀스택 vs Next.js+Node/Express 분리
 
 | 항목 | Next.js 풀스택 (API Route) | Next.js + Node/Express 분리 |
@@ -237,7 +239,7 @@ push_subscriptions (id, user_id, endpoint, keys_json, created_at)  — PWA 푸�
 | Phase 1 | Supabase 프로젝트 생성 + 스키마 마이그레이션 + 로컬 개발 환경 (Supabase CLI) | 마이그레이션 적용, 로컬에서 DB 연결 확인 |
 | Phase 2 | 이력서 업로드 + Notion 연동 + AI 질문 생성 API (+ 미리 채워두기 로직) + AI 답변 피드백 API (Bedrock, `ap-northeast-2`) | 질문 생성/보충, 피드백 생성 end-to-end 동작 |
 | Phase 3 | 프론트 UI: 온보딩, 오늘의 질문, 답변 저장, 스트릭, "AI 피드백 받기" 버튼, PWA manifest/서비스워커 + 푸시 구독 등록 | 로컬에서 전체 플로우 사용 가능, PWA 설치 확인 |
-| Phase 4 | AWS 인프라 구성 (Lambda+API Gateway, S3) + Supabase 프로덕션 연결 + EventBridge Scheduler(고정 cron) 리마인더 발송 Lambda + 배포 | 실제 URL로 접속 가능, 고정 시간에 푸시 도착 확인 |
+| Phase 4 | AWS 인프라 구성 (EC2 코로케이션 + nginx — 3.2 결정 변경 참고) + Supabase 프로덕션 연결 + EventBridge Scheduler(고정 cron) 리마인더 발송 Lambda + 배포 | 실제 URL로 접속 가능, 고정 시간에 푸시 도착 확인 |
 | Phase 5 | 도메인 연결, 모니터링(CloudWatch), 비용 알람 | 운영 준비 완료 |
 
 **실행 순서 변경 (2026-08-07)**: 위 표는 Phase별 최종 산출물 기준이며, 실제 착수 순서는 Phase 2를 전부 끝낸 뒤 Phase 3을 시작하지 않는다. 대신 **기능 단위로 백엔드+프론트를 함께(vertical slice) 진행** — 예: "이력서 업로드"는 API(Phase 2)와 화면(Phase 3)을 같은 기능 단위로 묶어 처리. 이유: curl로만 검증하며 백엔드를 전부 쌓기보다, 실제 화면에서 눈으로 확인하며 가는 게 개인 프로젝트 진행에 더 낫다고 판단. "AI 답변 피드백"은 답변이 쌓인 후에야 의미가 있어 예외적으로 가장 마지막으로 유지. 착수 순서와 현재 상태는 [`progress.md`](./progress.md)에서 실시간으로 관리.
@@ -245,7 +247,7 @@ push_subscriptions (id, user_id, endpoint, keys_json, created_at)  — PWA 푸�
 ## 7. 열린 질문 / 리스크
 
 - **이력서 파싱 정확도**: PDF 레이아웃에 따라 텍스트 추출 품질 편차 가능 — 1차는 단순 텍스트 추출로 시작, 필요시 개선.
-- **비용**: Bedrock 호출량 + Lambda/S3 비용은 개인 사용 규모에서는 미미할 것으로 예상되나, AWS 요금 알람(Budget Alert) 설정 권장. Supabase는 무료 티어 내 사용 유지.
+- **비용**: Bedrock 호출량 + 리마인더 Lambda 비용은 개인 사용 규모에서는 미미하나, EC2 코로케이션(3.2 결정 변경)은 상시 과금(프리티어 이탈)이므로 AWS 요금 알람(Budget Alert)을 **Phase 4 착수 전에** 설정 ([`deploy-topology-review.md`](./deploy-topology-review.md) 3절). Supabase는 무료 티어 내 사용 유지.
 - **Bedrock 모델 액세스**: `ap-northeast-2`에서 Claude 모델 액세스를 콘솔에서 신청해야 함 — 진행 전 확인 필요.
 - **iOS 푸시 제약**: iOS 16.4 이상에서만, 홈 화면에 추가된 PWA에 한해 웹 푸시가 동작함(3.8). 아이폰 사용 시 최초 설치 안내 필요.
 
