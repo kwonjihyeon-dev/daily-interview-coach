@@ -2,15 +2,18 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { createVisitorSession } from "./actions";
 
 /**
- * 대상 스펙: .claude/artifacts/spec/이메일-방문자-게이트_spec.md (v2) "게이트 폼(GateForm, 변경 — 직접 호출)" 절.
+ * 대상 스펙: .claude/artifacts/spec/클라이언트-데이터-계층-전환_spec.md "설계 판단 1" 절.
  *
- * v1의 Next.js Route Handler(`/api/gate/verify`) 프록시는 폐기되었다 — 브라우저가
- * `${NEXT_PUBLIC_API_BASE_URL}/api/sessions`을 `credentials:"include"`로 직접
- * 호출한다(apps/api가 쿠키를 발급하므로 브라우저가 이를 저장하려면 필수). `fetch`와
- * `response.json()` 파싱을 하나의 try/catch로 묶어 네트워크 단절/CORS 차단/JSON
- * 파싱 실패를 모두 동일한 안내 문구로 처리한다.
+ * v2까지 브라우저가 `${NEXT_PUBLIC_API_BASE_URL}/api/sessions`를 `credentials:"include"`로
+ * 직접 호출했지만, 프로덕션에서 apps/api가 `127.0.0.1`에만 바인딩되면(deploy-topology-review.md
+ * 3절) 브라우저가 더 이상 apps/api에 도달할 수 없어, Server Action `createVisitorSession`
+ * (`./actions`)을 호출하는 것으로 바뀌었다. `apiPost` 호출·Set-Cookie 파싱·쿠키 적용은 그
+ * 액션 내부(및 `setCookieForwarding.ts`)의 책임이다 — 이 컴포넌트는 반환값의 `kind`로
+ * 분기만 한다. `createVisitorSession` 호출 자체가 프레임워크 레벨에서 reject될 수 있으므로
+ * (액션 ID 불일치 등) 이 호출도 try/catch로 감싼다(액션 내부 catch와 이중 방어).
  *
  * `reason=expired` 배너 렌더링은 부모(게이트 페이지, Server Component)의 책임이다 —
  * 이 컴포넌트는 폼 제출/에러표시/재시도(잠금 없음)만 책임진다.
@@ -31,23 +34,18 @@ export function GateForm({ nextPath }: GateFormProps) {
     setErrorMessage(null);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/sessions`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const body = await response.json();
+      const result = await createVisitorSession(email);
 
-      if (!response.ok) {
-        setErrorMessage(body.message ?? "오류가 발생했습니다.");
+      if (result.kind === "failed") {
+        setErrorMessage(result.message);
         setIsSubmitting(false);
         return;
       }
 
       router.replace(nextPath);
     } catch {
-      // 네트워크 단절, apps/api 무응답, CORS 차단, JSON 파싱 실패를 모두 동일하게 처리한다.
+      // createVisitorSession 호출 자체가 프레임워크 레벨에서 reject되는 경우를 위한 이중
+      // 방어(액션 내부 catch와 동일한 안내 문구로 처리).
       setErrorMessage("일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
       setIsSubmitting(false);
     }

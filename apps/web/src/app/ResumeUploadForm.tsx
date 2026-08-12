@@ -4,13 +4,20 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { useRouter } from "next/navigation";
 import type { Source } from "@daily-interview-coach/shared-types";
 import styles from "./ResumeUploadForm.module.scss";
+import { uploadResume } from "./resumeActions";
 
 /**
  * 대상 스펙: .claude/artifacts/spec/이력서-업로드-UI_spec.md (v1.1, Approved),
- * .claude/artifacts/spec/질문-생성_spec.md (v2) "프론트엔드 — ResumeUploadForm.tsx 확장" 절.
+ * .claude/artifacts/spec/질문-생성_spec.md (v2) "프론트엔드 — ResumeUploadForm.tsx 확장" 절,
+ * .claude/artifacts/spec/클라이언트-데이터-계층-전환_spec.md "설계 판단 1/3" 절.
  *
- * 아키텍처는 GateForm.tsx와 동일: 브라우저가 apps/api를
- * `${NEXT_PUBLIC_API_BASE_URL}/api/sources/resume`로 credentials:"include" 직접 호출한다.
+ * v2까지 브라우저가 apps/api의 `/api/sources/resume`을 `credentials:"include"`로 직접
+ * 호출했지만, 프로덕션에서 apps/api가 `127.0.0.1`에만 바인딩되면(deploy-topology-review.md
+ * 3절) 브라우저가 더 이상 apps/api에 도달할 수 없어, 업로드는 Server Action
+ * `uploadResume`(`./resumeActions`)을 호출하는 것으로 바뀌었다. 반면 질문 생성은 Server
+ * Action의 전역 직렬 처리 문제를 피하기 위해 Route Handler(`/api/questions/generate`,
+ * 상대경로)를 여전히 `fetch`로 호출한다 — 동일 출처 요청이라 `credentials:"include"`는
+ * 더 이상 필요 없다.
  *
  * 제출 버튼 활성화 조건(v1.1): disabled = !selectedFile || isUploading || isClientValidationError.
  * `errorSource`는 errorMessage(표시용 문자열)와 별개로 에러의 출처(client/server)를
@@ -80,15 +87,11 @@ export function ResumeUploadForm() {
     setGenerationErrorMessage(null);
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/questions/generate`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sourceId }),
-        },
-      );
+      const response = await fetch("/api/questions/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceId }),
+      });
 
       if (uploadedSourceRef.current?.id !== sourceId) return;
 
@@ -138,7 +141,7 @@ export function ResumeUploadForm() {
     setErrorSource(validationError ? "client" : null);
   }
 
-  async function uploadResume(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function submitResumeUpload(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!selectedFile || isUploading || isClientValidationError) return;
 
@@ -150,29 +153,25 @@ export function ResumeUploadForm() {
     formData.append("file", selectedFile);
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/sources/resume`,
-        { method: "POST", credentials: "include", body: formData },
-      );
+      const result = await uploadResume(formData);
 
-      if (response.status === 401) {
-        router.replace("/gate?reason=expired&next=%2F");
+      if (result.kind === "unauthenticated") {
+        router.replace(result.redirectTo);
         return;
       }
 
-      const body = await response.json();
-
-      if (!response.ok) {
-        setErrorMessage(body.message ?? "오류가 발생했습니다.");
+      if (result.kind === "failed") {
+        setErrorMessage(result.message);
         setErrorSource("server");
         setIsUploading(false);
         return;
       }
 
-      setUploadedSource(body.source);
+      setUploadedSource(result.source);
       setIsUploading(false);
     } catch {
-      // 네트워크 단절, apps/api 무응답, CORS 차단, JSON 파싱 실패를 모두 동일하게 처리한다.
+      // uploadResume 호출 자체가 프레임워크 레벨에서 reject되는 경우(예: 클라이언트 검증을
+      // 우회한 6MB 초과 바디가 Server Action 실행 전에 거부된 경우)를 위한 이중 방어.
       setErrorMessage("일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
       setErrorSource("server");
       setIsUploading(false);
@@ -271,7 +270,7 @@ export function ResumeUploadForm() {
   return (
     <div className={`${styles.card} relative w-full max-w-md p-8 sm:p-10`}>
       <span aria-hidden className={styles.cornerFold} />
-      <form onSubmit={uploadResume} noValidate className="space-y-6">
+      <form onSubmit={submitResumeUpload} noValidate className="space-y-6">
         <div className="space-y-1.5">
           <p className="text-xs font-medium tracking-[0.2em] text-mute">0일차 · 접수</p>
           <h2 className="font-display text-xl font-semibold leading-snug">

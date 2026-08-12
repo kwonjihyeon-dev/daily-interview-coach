@@ -5,15 +5,16 @@ import { EmptyQuestionState } from "./EmptyQuestionState";
 
 /**
  * 대상 스펙: .claude/artifacts/spec/질문-생성_spec.md (v2) "프론트엔드 — 신규 /today
- * 페이지 > EmptyQuestionState.tsx (Client Component, v2 신규)" 절.
+ * 페이지 > EmptyQuestionState.tsx (Client Component, v2 신규)" 절,
+ * .claude/artifacts/spec/클라이언트-데이터-계층-전환_spec.md "설계 판단 3" 절.
  *
  * `apiClient.ts`는 `import "server-only"`가 붙어 있어 Client Component에서 사용할 수
- * 없으므로(서버 전용), 이 컴포넌트는 `ResumeUploadForm.tsx`/`GateForm.tsx`와 동일한
- * 아키텍처로 브라우저가 apps/api를
- * `${NEXT_PUBLIC_API_BASE_URL}/api/questions/generate`에 credentials:"include"로 직접
- * 호출한다고 가정한다. props 없이 완전히 독립적으로 자체 상태(`status`/`question`/
- * `errorMessage`)를 관리하며, "다시 시도"는 `GET /api/questions/today`가 아니라
- * `POST /api/questions/generate`를 `sourceId` 없이({}) 직접 호출한다(v2 확정 지침).
+ * 없으므로(서버 전용), 질문 생성은 apps/web 자체의 Route Handler
+ * (`/api/questions/generate`, 상대경로)를 거친다 — apps/api를 직접 호출하지 않으므로
+ * `NEXT_PUBLIC_API_BASE_URL`도 `credentials:"include"`도 더 이상 필요 없다(동일 출처
+ * 요청이라 브라우저가 쿠키를 기본으로 포함한다). props 없이 완전히 독립적으로 자체 상태
+ * (`status`/`question`/`errorMessage`)를 관리하며, "다시 시도"는 `GET /api/questions/today`가
+ * 아니라 `POST /api/questions/generate`를 `sourceId` 없이({}) 직접 호출한다(v2 확정 지침).
  */
 
 const routerReplaceMock = vi.hoisted(() => vi.fn());
@@ -22,8 +23,6 @@ vi.mock("next/navigation", () => ({
 }));
 
 const fetchMock = vi.hoisted(() => vi.fn());
-
-const API_BASE_URL = "http://localhost:3001";
 
 function jsonResponse(status: number, body: unknown) {
   return { ok: status >= 200 && status < 300, status, json: async () => body };
@@ -40,12 +39,10 @@ function retryButton() {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal("fetch", fetchMock);
-  vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", API_BASE_URL);
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  vi.unstubAllEnvs();
 });
 
 describe("EmptyQuestionState", () => {
@@ -62,7 +59,7 @@ describe("EmptyQuestionState", () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it("'다시 시도'를 클릭하면 GET /api/questions/today가 아니라 POST /api/questions/generate가 sourceId 없이({}) 호출되고, 버튼 텍스트가 '생성 중...'으로 바뀌며 비활성화된다", async () => {
+    it("'다시 시도'를 클릭하면 GET /api/questions/today가 아니라 POST /api/questions/generate(상대경로)가 sourceId 없이({}) 호출되고, 버튼 텍스트가 '생성 중...'으로 바뀌며 비활성화된다", async () => {
       // Given
       fetchMock.mockReturnValue(pendingForever());
       render(<EmptyQuestionState />);
@@ -74,8 +71,9 @@ describe("EmptyQuestionState", () => {
       // Then
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const [url, options] = fetchMock.mock.calls[0];
-      expect(url).toBe(`${API_BASE_URL}/api/questions/generate`);
-      expect(options).toMatchObject({ method: "POST", credentials: "include" });
+      expect(url).toBe("/api/questions/generate");
+      expect(options).toMatchObject({ method: "POST" });
+      expect(options.credentials).toBeUndefined();
       expect(JSON.parse(options.body as string)).toEqual({});
 
       const loadingButton = await screen.findByRole("button", { name: "생성 중..." });

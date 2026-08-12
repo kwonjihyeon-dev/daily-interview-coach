@@ -6,13 +6,15 @@ import type { Question } from "@daily-interview-coach/shared-types";
 
 /**
  * 대상 스펙: .claude/artifacts/spec/질문-생성_spec.md (v2) "프론트엔드 — 신규 /today 페이지
- * > EmptyQuestionState.tsx (Client Component, v2 신규)" 절.
+ * > EmptyQuestionState.tsx (Client Component, v2 신규)" 절,
+ * .claude/artifacts/spec/클라이언트-데이터-계층-전환_spec.md "설계 판단 3" 절.
  *
- * `apiClient.ts`는 `import "server-only"`가 붙어 있어 이 컴포넌트에서 쓸 수 없으므로,
- * ResumeUploadForm.tsx/GateForm.tsx와 동일한 아키텍처로 브라우저가 apps/api를
- * `${NEXT_PUBLIC_API_BASE_URL}/api/questions/generate`에 credentials:"include"로 직접
- * 호출한다. "다시 시도"는 GET /api/questions/today가 아니라 POST /api/questions/generate를
- * sourceId 없이({}) 직접 호출한다(v2 확정 지침) — 별도의 GET /today 재호출은 하지 않는다.
+ * `apiClient.ts`는 `import "server-only"`가 붙어 있어 이 컴포넌트에서 쓸 수 없으므로, 질문
+ * 생성은 apps/web 자체의 Route Handler(`/api/questions/generate`, 상대경로)를 거친다 —
+ * apps/api를 직접 호출하지 않으므로 `NEXT_PUBLIC_API_BASE_URL`도 `credentials:"include"`도
+ * 더 이상 필요 없다(동일 출처 요청이라 브라우저가 쿠키를 기본으로 포함한다). "다시 시도"는
+ * GET /api/questions/today가 아니라 POST /api/questions/generate를 sourceId 없이({})
+ * 직접 호출한다(v2 확정 지침) — 별도의 GET /today 재호출은 하지 않는다.
  */
 
 type RegenerationStatus = "idle" | "generating" | "ready" | "error";
@@ -28,15 +30,11 @@ export function EmptyQuestionState() {
     setErrorMessage(null);
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/questions/generate`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        },
-      );
+      const response = await fetch("/api/questions/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
 
       if (response.status === 401) {
         router.replace("/gate?reason=expired&next=%2Ftoday");
