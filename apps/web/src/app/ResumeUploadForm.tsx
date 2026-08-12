@@ -66,9 +66,11 @@ export function ResumeUploadForm() {
   const isSubmitDisabled = !selectedFile || isUploading || isClientValidationError;
 
   // stale-response 가드: 응답 도착 시점의 "현재" uploadedSource를 참조하기 위한 ref.
-  // 렌더링 중 대입은 부작용이 없는 단순 값 동기화이므로 useEffect가 필요 없다.
+  // React 19부터 렌더링 중 ref 대입이 금지되어(concurrent 렌더링에서 안전하지 않음) useEffect로 동기화한다.
   const uploadedSourceRef = useRef<Source | null>(uploadedSource);
-  uploadedSourceRef.current = uploadedSource;
+  useEffect(() => {
+    uploadedSourceRef.current = uploadedSource;
+  }, [uploadedSource]);
 
   // 동일 sourceId에 대한 자동 생성 트리거 중복 호출 가드(React StrictMode 등).
   const generationRequestedSourceIdRef = useRef<string | null>(null);

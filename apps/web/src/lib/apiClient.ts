@@ -21,7 +21,7 @@ async function request(
   init?: RequestInit,
   currentPath: string = "/",
 ): Promise<ApiResult> {
-  const cookieHeader = headers().get("cookie") ?? "";
+  const cookieHeader = (await headers()).get("cookie") ?? "";
   const response = await fetch(`${process.env.API_BASE_URL}${path}`, {
     ...init,
     method,

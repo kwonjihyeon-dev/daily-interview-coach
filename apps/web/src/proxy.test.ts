@@ -1,11 +1,11 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import { config, middleware } from "./middleware";
+import { config, proxy } from "./proxy";
 
 /**
  * 대상 스펙: .claude/artifacts/spec/이메일-방문자-게이트_spec.md
- * "apps/web/src/middleware.ts" 절 + Acceptance Criteria.
+ * "apps/web/src/middleware.ts"(Next 16에서 `proxy.ts`로 이름 변경) 절 + Acceptance Criteria.
  *
  * `NextRequest`/`NextResponse`가 Web 표준 Request/Response 기반이라 jsdom 환경에서
  * 불필요한 충돌을 피하기 위해 이 파일은 `node` 환경으로 강제한다(@vitest-environment).
@@ -18,14 +18,14 @@ function buildRequest(url: string, cookieHeader?: string): NextRequest {
   return new NextRequest(url, cookieHeader ? { headers: { cookie: cookieHeader } } : undefined);
 }
 
-describe("middleware", () => {
+describe("proxy", () => {
   describe("정상 시나리오", () => {
     it("쿠키가 없으면 '/gate?next=%2F'로 307 리다이렉트한다", () => {
       // Given: dic_visitor_email 쿠키 없이 '/'에 접근
       const req = buildRequest("http://localhost:3000/");
 
       // When
-      const res = middleware(req);
+      const res = proxy(req);
 
       // Then
       expect(res.status).toBe(307);
@@ -39,7 +39,7 @@ describe("middleware", () => {
       const req = buildRequest("http://localhost:3000/history?filter=answered");
 
       // When
-      const res = middleware(req);
+      const res = proxy(req);
 
       // Then
       expect(res.status).toBe(307);
@@ -56,7 +56,7 @@ describe("middleware", () => {
       );
 
       // When
-      const res = middleware(req);
+      const res = proxy(req);
 
       // Then: NextResponse.next()는 x-middleware-next 헤더를 갖는다
       expect(res.headers.get("x-middleware-next")).toBe("1");
@@ -70,7 +70,7 @@ describe("middleware", () => {
       const req = buildRequest("http://localhost:3000/", "dic_visitor_email=abc123");
 
       // When
-      const res = middleware(req);
+      const res = proxy(req);
 
       // Then
       expect(res.status).toBe(307);
@@ -89,7 +89,7 @@ describe("middleware", () => {
       );
 
       // When
-      const res = middleware(req);
+      const res = proxy(req);
 
       // Then
       expect(res.status).toBe(307);
@@ -100,7 +100,7 @@ describe("middleware", () => {
       const req = buildRequest("http://localhost:3000/history");
 
       // When
-      const res = middleware(req);
+      const res = proxy(req);
 
       // Then: 별도 로그아웃 로직 없이 "쿠키 없음"과 동일한 리다이렉트가 발생한다
       expect(res.status).toBe(307);

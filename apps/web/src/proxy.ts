@@ -8,7 +8,7 @@ import { VISITOR_COOKIE_NAME, isValidVisitorEmailCookieValue } from "./lib/visit
  * 쿠키 형식만 검사한다(DB 재조회는 apps/api 호출 시점에 위임) — Edge 미들웨어에서
  * 매 네비게이션마다 DB 호출을 하면 모든 페이지 전환에 지연이 생기기 때문이다.
  */
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const cookieValue = request.cookies.get(VISITOR_COOKIE_NAME)?.value;
 
   if (isValidVisitorEmailCookieValue(cookieValue)) {

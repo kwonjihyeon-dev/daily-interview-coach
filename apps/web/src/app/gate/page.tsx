@@ -11,11 +11,12 @@ import { GateForm } from "./GateForm";
  * next(안전성 검증 후) 또는 "/"로 리다이렉트한다.
  */
 interface GatePageProps {
-  searchParams: { next?: string; reason?: string };
+  searchParams: Promise<{ next?: string; reason?: string }>;
 }
 
-export default async function GatePage({ searchParams }: GatePageProps) {
-  const cookieStore = cookies();
+export default async function GatePage(props: GatePageProps) {
+  const searchParams = await props.searchParams;
+  const cookieStore = await cookies();
   const cookieValue = cookieStore.get(VISITOR_COOKIE_NAME)?.value;
 
   if (isValidVisitorEmailCookieValue(cookieValue)) {

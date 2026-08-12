@@ -44,7 +44,7 @@ describe("GatePage", () => {
       cookieStoreMock.get.mockReturnValue({ value: "user@example.com" });
 
       // When
-      await GatePage({ searchParams: { next: "/history" } });
+      await GatePage({ searchParams: Promise.resolve({ next: "/history" }) });
 
       // Then
       expect(redirectMock).toHaveBeenCalledWith("/history");
@@ -55,7 +55,7 @@ describe("GatePage", () => {
       cookieStoreMock.get.mockReturnValue({ value: "user@example.com" });
 
       // When
-      await GatePage({ searchParams: {} });
+      await GatePage({ searchParams: Promise.resolve({}) });
 
       // Then
       expect(redirectMock).toHaveBeenCalledWith("/");
@@ -68,7 +68,7 @@ describe("GatePage", () => {
       cookieStoreMock.get.mockReturnValue({ value: "user@example.com" });
 
       // When
-      await GatePage({ searchParams: { next: "https://evil.com" } });
+      await GatePage({ searchParams: Promise.resolve({ next: "https://evil.com" }) });
 
       // Then
       expect(redirectMock).toHaveBeenCalledWith("/");
@@ -79,7 +79,7 @@ describe("GatePage", () => {
       cookieStoreMock.get.mockReturnValue({ value: "user@example.com" });
 
       // When
-      await GatePage({ searchParams: { next: "//evil.com" } });
+      await GatePage({ searchParams: Promise.resolve({ next: "//evil.com" }) });
 
       // Then
       expect(redirectMock).toHaveBeenCalledWith("/");
@@ -90,7 +90,7 @@ describe("GatePage", () => {
       cookieStoreMock.get.mockReturnValue(undefined);
 
       // When
-      const jsx = await GatePage({ searchParams: { next: "/history" } });
+      const jsx = await GatePage({ searchParams: Promise.resolve({ next: "/history" }) });
       render(jsx as ReactElement);
 
       // Then
@@ -103,7 +103,7 @@ describe("GatePage", () => {
       cookieStoreMock.get.mockReturnValue({ value: "abc123" });
 
       // When
-      const jsx = await GatePage({ searchParams: {} });
+      const jsx = await GatePage({ searchParams: Promise.resolve({}) });
       render(jsx as ReactElement);
 
       // Then
@@ -116,7 +116,7 @@ describe("GatePage", () => {
       cookieStoreMock.get.mockReturnValue(undefined);
 
       // When
-      const jsx = await GatePage({ searchParams: { reason: "expired" } });
+      const jsx = await GatePage({ searchParams: Promise.resolve({ reason: "expired" }) });
       render(jsx as ReactElement);
 
       // Then
@@ -130,7 +130,7 @@ describe("GatePage", () => {
       cookieStoreMock.get.mockReturnValue(undefined);
 
       // When
-      const jsx = await GatePage({ searchParams: {} });
+      const jsx = await GatePage({ searchParams: Promise.resolve({}) });
       render(jsx as ReactElement);
 
       // Then
